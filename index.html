@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Box</title>
+    <title>Minesweeper</title>
     <style>
         body {
             margin: 0;
@@ -191,10 +191,29 @@
                 $container.innerHTML = '';
                 let over = false;
 
-                const gameOver = (fn) => {
-                    const answer = window.confirm('Would you like to play again?');
+                const gameOver = (win) => {
+                    const text = (win) ? 
+                        'Awesome, you won! Would you like to play again?' :
+                        'Ouch... You lost! Would you like to try again?';
+                    
+                    const answer = window.confirm(text);
                     over = true;
-                    return fn(answer);
+                    if (answer)
+                        newGame();
+                };
+
+                const checkForWin = () => {
+                    boxesLeft = 0;
+
+                    eachBox(boxes, (box) => {
+                        if (!box.isBomb() && !box.isShown()) {
+                            ++boxesLeft;
+                        }
+                    });
+
+                    if (boxesLeft === 0) {
+                        gameOver();
+                    }
                 };
 
                 // set BOMB_COUNT random bombs
@@ -227,18 +246,16 @@
                         if (!over) {
                             if (box.isFlagged()) {
                                 box.unflag();
-                            } else if (box.isBomb()) {
+                            } else if (box.isBomb()) {                                
                                 box.show();
-                                gameOver((playAgain) => {
-                                    if (playAgain) {
-                                        newGame();
-                                    }
-                                });
+                                over = true;
+                                setTimeout(gameOver, 0);
                             } else if (box.count() === 0) {
                                 recurseEmptyNeighbors(boxes, row, col);
                             } else {
                                 box.show();
                             }
+                            checkForWin();
                         }
                     });
 
