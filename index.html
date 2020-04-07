@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Box</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .container {
+            width: 100%;
+            height: 100%;
+            padding: 50px;
+            text-align: center;
+            font-size: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .row {
+            font-size: 0;
+            margin: 0;
+            display: inline-block;
+        }
+
+        .square {
+            cursor: pointer;
+            -webkit-user-select: none;  /* Chrome all / Safari all */
+            -moz-user-select: none;     /* Firefox all */
+            -ms-user-select: none;      /* IE 10+ */
+            user-select: none;          /* Likely future */   
+            width: 50px;
+            height: 50px;
+            border: 2px solid black;
+            background-color: #eaeaea;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #eaeaea;
+        }
+
+        .select-box {
+            position: absolute;
+            background-color: black;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container"></div>
+    <script>
+        (() => {
+            const $ = document.querySelector.bind(document);
+            $.all = document.querySelectorAll.bind(document);
+
+            function createElememt(html) {
+                const $div = document.createElement('div');
+                $div.innerHTML = html.trim();
+                return $div.firstChild;
+            }
+
+            function getRandomInt(max) {
+                return Math.floor(Math.random() * Math.floor(max));
+            }
+
+            function addRow(col, fn, result = []) {
+                if (!col)
+                    return result;
+                return addRow(col - 1, fn, result.concat([fn()]));
+            }
+
+            function generate2DMatrix(row, col, fn, matrix = []) {
+                if (row) {
+                    matrix.push(addRow(col, fn));
+                    return generate2DMatrix(row - 1, col, fn, matrix);
+                }
+                return matrix;
+            }
+
+            function eachBox(boxes, fn) {
+                boxes.map((row, i) => row.map((b, j) => fn(b, i, j)));
+            }
+
+            function getNeighbors(boxes, row, col) {
+                return [
+                    boxes[row - 1] && boxes[row - 1][col],
+                    boxes[row - 1] && boxes[row - 1][col - 1],
+                    boxes[row - 1] && boxes[row - 1][col + 1],
+                    boxes[row][col - 1],
+                    boxes[row][col + 1],
+                    boxes[row + 1] && boxes[row + 1][col],
+                    boxes[row + 1] && boxes[row + 1][col - 1],
+                    boxes[row + 1] && boxes[row + 1][col + 1],
+                ].filter(b => b);
+            }
+
+            function recurseEmptyNeighbors(boxes, row, col, fn) {
+                if (row < 0 || row >= boxes.length || col < 0 || col >= boxes.length) {
+                    return;
+                }
+
+                if (!boxes[row][col].isShown()) {
+                    boxes[row][col].show();
+                    if (boxes[row][col].count() !== 0)
+                        return;
+                } else {
+                    return;
+                }
+
+                recurseEmptyNeighbors(boxes, row - 1, col, fn);
+                recurseEmptyNeighbors(boxes, row + 1, col, fn);
+                recurseEmptyNeighbors(boxes, row, col - 1, fn);
+                recurseEmptyNeighbors(boxes, row, col + 1, fn);
+            }
+
+            function Box() {
+                const $el = createElememt(`
+                <div class="square">0</div>
+                `);
+
+                let count = 0;
+                let bomb = false;
+                let showing = false;
+                let flagged = false;
+                let singleTapHandler;
+                let rightTapHandler;
+
+                this.element = () => $el;
+                this.isBomb = () => bomb;
+                this.appendTo = ($parent) => $parent.append($el);
+                this.count = () => count;
+                this.isShown = () => showing;
+                this.isFlagged = () => flagged;
+                this.makeBomb = () => bomb = true;
+                this.singleTap = (fn) => singleTapHandler = fn;
+                this.rightTap = (fn) => rightTapHandler = fn;
+
+                this.incrementCount = () => {
+                    if (!bomb) {
+                        ++count;
+                    };
+                };
+
+                this.show = () => {
+                    showing = true;
+                    if (bomb) {
+                        $el.style.backgroundColor = 'red';
+                        $el.innerHTML = `B`;
+                    } else {
+                        $el.style.backgroundColor = 'grey';
+                        $el.innerHTML = (count === 0) ?
+                            '<span style="color: grey">0</span>' : count;
+                    }
+                };
+
+                this.flag = () => {
+                    flagged = true;
+                    $el.style.color = 'grey';
+                    $el.innerHTML = 'X';
+                }
+
+                this.unflag = () => {
+                    flagged = false;
+                    $el.style.color = '#eaeaea';
+                    $el.innerHTML = '0';
+                }
+
+                $el.addEventListener('click', (e) => {
+                    if (singleTapHandler) singleTapHandler(e, this);
+                });
+
+                $el.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    if (rightTapHandler) rightTapHandler(e, this);
+                });
+            }
+
+            function newGame() {
+                const BOMB_COUNT = 10;
+                const boxes = generate2DMatrix(10, 10, () => new Box());
+                const $container = $('.container');
+                $container.innerHTML = '';
+                let over = false;
+
+                const gameOver = (fn) => {
+                    const answer = window.confirm('Would you like to play again?');
+                    over = true;
+                    return fn(answer);
+                };
+
+                // set BOMB_COUNT random bombs
+                for (let i = 0; i < BOMB_COUNT; ++i) {
+                    const box = boxes[getRandomInt(10)][getRandomInt(10)];
+                    if (!box.isBomb()) {
+                        box.makeBomb();
+                    } else {
+                        --i;
+                    }
+                }
+
+                // increment boxes based off bombs
+                eachBox(boxes, (box, row, col) => {
+                    if (box.isBomb()) {
+                        getNeighbors(boxes, row, col).map(b => b.incrementCount());
+                    }
+                });
+
+                // add elements to DOM
+                boxes.map((row) => {
+                    const $row = createElememt(`<div class="row"></div>`);
+                    $container.append($row);
+                    row.map((box) => box.appendTo($row));
+                });
+
+                // setup click handlers
+                eachBox(boxes, (box, row, col) => {
+                    box.singleTap(() => {
+                        if (!over) {
+                            if (box.isFlagged()) {
+                                box.unflag();
+                            } else if (box.isBomb()) {
+                                box.show();
+                                gameOver((playAgain) => {
+                                    if (playAgain) {
+                                        newGame();
+                                    }
+                                });
+                            } else if (box.count() === 0) {
+                                recurseEmptyNeighbors(boxes, row, col);
+                            } else {
+                                box.show();
+                            }
+                        }
+                    });
+
+                    box.rightTap(() => { if (!over) box.flag(); });
+                });
+            }
+
+            window.onload = newGame;
+        })();
+    </script>
+</body>
+</html>
